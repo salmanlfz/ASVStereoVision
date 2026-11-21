@@ -3,7 +3,6 @@
 Satu repo, satu branch utama `main`, dan kode ROS bersama di `asv_ws/src`.
 Stack: Ubuntu 22.04, ROS 2 Humble, Gazebo **Garden (gz-sim 7)**,
 bridge `ros-humble-ros-gzgarden-*`, serta [fork VRX](https://github.com/salmanlfz/vrx)
-commit `8087723140143654c12a91ca1b756198f0f83f5c`.
 
 - **Mac Apple Silicon + OrbStack:** [setup macOS](docs/setup-macos.md), desktop MATE/TigerVNC/noVNC melalui `127.0.0.1:6080`.
 - **Linux x86-64:** [setup Linux](docs/setup-linux.md), jendela Gazebo di desktop X11 host dengan Xauthority. Software rendering default; GPU opsional.
