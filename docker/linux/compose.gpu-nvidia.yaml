@@ -1,0 +1,13 @@
+# Requires host NVIDIA driver and configured NVIDIA Container Toolkit.
+services:
+  asv:
+    environment:
+      LIBGL_ALWAYS_SOFTWARE: "0"
+      NVIDIA_DRIVER_CAPABILITIES: graphics,utility,compute,display
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

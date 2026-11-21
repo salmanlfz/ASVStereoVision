@@ -1,0 +1,34 @@
+name: asv-mac
+services:
+  asv:
+    image: ${ASV_IMAGE:-asv-humble-garden:0.2.0}
+    build:
+      context: ../..
+      dockerfile: docker/mac/Dockerfile
+      args:
+        TIRYOH_BASE: ${TIRYOH_BASE:-tiryoh/ros2-desktop-vnc:humble@sha256:84127c508789237a03a3c3ec4fec2a2b5e7caa40c0ad57183cb60e6d1642c2aa}
+        PREFETCH_FUEL: ${PREFETCH_FUEL:-1}
+    platform: linux/amd64
+    shm_size: 512m
+    ports:
+      - "127.0.0.1:${ASV_PORT:-6080}:80"
+    environment:
+      USER: ubuntu
+      DISPLAY: :1
+      XAUTHORITY: /home/ubuntu/.Xauthority
+    volumes:
+      - ../../asv_ws/src:/workspace/asv_ws/src
+    healthcheck:
+      # Unauthenticated RFB probes trigger TigerVNC's loopback blacklist,
+      # which also blocks websockify. Check the listener without connecting.
+      # Browser/WebSocket connectivity needs a separate end-to-end check.
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          curl -fsS http://127.0.0.1:80/vnc.html >/dev/null &&
+          ss -H -ltn 'sport = :5901' | grep -q .
+      interval: 5s
+      timeout: 3s
+      retries: 6

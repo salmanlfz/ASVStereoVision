@@ -1,0 +1,12 @@
+.git
+.github
+asv_ws
+README.md
+*.tar
+*.tar.gz
+.env
+.cache
+.DS_Store
+**/.DS_Store
+**/__pycache__
+docs

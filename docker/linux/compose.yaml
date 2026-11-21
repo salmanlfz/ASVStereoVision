@@ -1,0 +1,36 @@
+name: asv-linux
+services:
+  asv:
+    image: ${ASV_LINUX_IMAGE:-asv-humble-garden-linux:0.2.0}
+    platform: linux/amd64
+    build:
+      context: ../..
+      dockerfile: docker/linux/Dockerfile
+      args:
+        ROS_BASE: ${ROS_BASE:-ros:humble-ros-base-jammy}
+        PREFETCH_FUEL: ${PREFETCH_FUEL:-1}
+        ASV_UID: ${ASV_UID:-1000}
+        ASV_GID: ${ASV_GID:-1000}
+    init: true
+    stdin_open: true
+    tty: true
+    shm_size: 512m
+    environment:
+      DISPLAY: ${DISPLAY:?Run source docker/scripts/linux-x11.sh in an X11 desktop session}
+      XAUTHORITY: /tmp/asv.Xauthority
+      QT_X11_NO_MITSHM: "1"
+      LIBGL_ALWAYS_SOFTWARE: "1"
+    volumes:
+      - ../../asv_ws/src:/workspace/asv_ws/src
+      - type: bind
+        source: /tmp/.X11-unix
+        target: /tmp/.X11-unix
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${ASV_XAUTHORITY:?Run source docker/scripts/linux-x11.sh first}
+        target: /tmp/asv.Xauthority
+        read_only: true
+        bind:
+          create_host_path: false

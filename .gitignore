@@ -1,0 +1,10 @@
+.env
+/asv_ws/build/
+/asv_ws/install/
+/asv_ws/log/
+*.tar
+*.tar.gz
+__pycache__/
+.DS_Store
+.cache/
+.env

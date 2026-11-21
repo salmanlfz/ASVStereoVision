@@ -1,0 +1,10 @@
+# Optional Intel/AMD Mesa device access; use with compose.yaml on a Linux host.
+services:
+  asv:
+    environment:
+      LIBGL_ALWAYS_SOFTWARE: "0"
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - ${ASV_RENDER_GID:?Set the host render device numeric group ID}
+      - ${ASV_VIDEO_GID:?Set the host card device numeric group ID}

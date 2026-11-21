@@ -1,0 +1,8 @@
+services:
+  asv:
+    build:
+      context: ../..
+      dockerfile: docker/mac/Dockerfile
+      args:
+        TIRYOH_BASE: ${TIRYOH_BASE:-tiryoh/ros2-desktop-vnc:humble@sha256:84127c508789237a03a3c3ec4fec2a2b5e7caa40c0ad57183cb60e6d1642c2aa}
+        PREFETCH_FUEL: ${PREFETCH_FUEL:-1}

@@ -1,0 +1,113 @@
+name: Build and test ASV images
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish tested platform images to GHCR
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [mac, linux]
+    env:
+      DISPLAY: :99
+      ASV_XAUTHORITY: /tmp/asv-ci.Xauthority
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate both Compose files and build selected image
+        run: |
+          docker compose -f docker/mac/compose.yaml config --quiet
+          docker compose -f docker/linux/compose.yaml config --quiet
+          docker compose -f docker/${{ matrix.platform }}/compose.yaml build asv
+
+      - name: Start Tiryoh desktop
+        if: matrix.platform == 'mac'
+        run: docker compose -f docker/mac/compose.yaml up -d --wait --wait-timeout 120
+
+      - name: Start Linux smoke container (CI virtual display, not host X11 validation)
+        if: matrix.platform == 'linux'
+        run: |
+          docker run -d --name asv-ci --shm-size=512m --user root \
+            --entrypoint bash -e DISPLAY=:99 -e LIBGL_ALWAYS_SOFTWARE=1 \
+            -v "$PWD/asv_ws/src:/workspace/asv_ws/src" \
+            asv-humble-garden-linux:0.2.0 -c 'sleep infinity'
+          docker exec asv-ci bash -c 'apt-get update && apt-get install -y --no-install-recommends xvfb'
+          docker exec -d asv-ci Xvfb :99 -screen 0 1280x800x24 -nolisten tcp
+          for attempt in {1..30}; do
+            if docker exec asv-ci xdpyinfo >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          docker exec asv-ci xdpyinfo >/dev/null
+
+      - name: Verify Garden, bridge, participant build, and vision ABI
+        shell: bash
+        run: |
+          if [[ '${{ matrix.platform }}' == mac ]]; then
+            cid=$(docker compose -f docker/mac/compose.yaml ps -q asv)
+          else
+            cid=asv-ci
+          fi
+          echo "ASV_CID=$cid" >> "$GITHUB_ENV"
+          docker exec --user ubuntu -e HOME=/home/ubuntu "$cid" bash -lc '
+            set -eo pipefail
+            source /opt/asv/environment.sh
+            glxinfo -B
+            gz sim --versions | grep -Eq "(^|[^[:digit:]])7\.[[:digit:]]"
+            ros2 pkg prefix ros_gz_bridge
+            colcon build --merge-install
+            python3 /opt/asv/check-vision-python.py
+          '
+          docker exec -d --user ubuntu -e HOME=/home/ubuntu "$cid" bash -lc '
+            source /opt/asv/environment.sh
+            exec dbus-run-session -- ros2 launch vrx_gz arena.launch.py arena:=2 > /tmp/asv-arena.log 2>&1
+          '
+          docker exec --user ubuntu -e HOME=/home/ubuntu "$cid" bash -lc '
+            source /opt/asv/environment.sh
+            timeout 180s ros2 topic echo /clock --once --qos-reliability best_effort
+            /opt/asv/check-stereo.sh
+          '
+
+      - name: Print diagnostics
+        if: failure()
+        run: |
+          docker compose -f docker/mac/compose.yaml logs || true
+          docker logs asv-ci || true
+          if [ -n "${ASV_CID:-}" ]; then
+            docker exec "$ASV_CID" tail -n 150 /tmp/asv-arena.log || true
+          fi
+
+      - name: Publish tested image
+        if: inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          ASV_PLATFORM: ${{ matrix.platform }}
+        shell: bash
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          ref="ghcr.io/${REPOSITORY,,}:sha-${GITHUB_SHA}-${ASV_PLATFORM}"
+          if [[ "$ASV_PLATFORM" == mac ]]; then
+            image=asv-humble-garden:0.2.0
+          else
+            image=asv-humble-garden-linux:0.2.0
+          fi
+          docker tag "$image" "$ref"
+          docker push "$ref"
+          printf 'Image: `%s`\n' "$ref" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Stop test containers
+        if: always()
+        run: |
+          docker compose -f docker/mac/compose.yaml down || true
+          docker rm -f asv-ci || true
